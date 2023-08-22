@@ -1,0 +1,69 @@
+---
+- name: Install Apache, MySQL, and PHP
+  hosts: web
+
+  tasks:
+    - name: Install Apache web server
+      apt:
+        name: apache2
+        state: latest
+
+    - name: Install MySQL server
+      apt:
+        name: mysql-server
+        state: latest
+
+    - name: Install PHP and related packages
+      apt:
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - php
+        - libapache2-mod-php
+        - php-mysql
+
+- name: Configure MySQL
+  hosts: web
+  become: yes
+  vars:
+    mysql_root_password: 'secure-root-pw'
+
+  tasks:
+    - name: Install pip
+      apt:
+        name: python3-pip
+        state: present
+
+    - name: Install PyMySQL
+      apt:
+        pkg: "{{ item }}"
+        state: present
+      become: true
+      with_items:
+        - mysql-server-8.0
+        - mysql-client-8.0
+        - python3-mysqldb
+        - libmysqlclient-dev
+
+    - name : Ensure mysql started
+      become: yes
+      service: name=mysql state=started enabled=yes
+
+    - name: Ensure root user can only login from localhost
+      mysql_user:
+        login_password: "{{ mysql_root_password }}"
+        check_implicit_admin: yes
+        name: root
+        host: "{{ item }}"
+        password: "{{ mysql_root_password }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        state: present
+      with_items:
+        - localhost
+        - 127.0.0.1
+        - ::1
+
+    - name: Add .my.cnf to user home
+      template:
+        src: /root/harish/ansible/my.cnf.j2
+        dest: /root/.my.cnf
